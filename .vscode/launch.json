@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: cli.py (sales_demo.csv)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/cli.py",
+            "args": ["sales_demo.csv"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}
