@@ -97,7 +97,6 @@ with open (args.fileName, "r") as file:
             monthBreakdown[monthKey]["revenue"] += amountParsed
 
 
-
 for values in invalid.values():
     for reason in values["reasons"]:
         if reason not in reasonsBreakdown:
@@ -107,27 +106,14 @@ for values in invalid.values():
 
 get_revenue = lambda pair: pair[1]["revenue"]
 topProductRanked = sorted(productBreakdown.items(), key=get_revenue, reverse=True)          
-print(topProductRanked)
-
-print()
-
 
 topMonthRanked = sorted(monthBreakdown.items(), reverse=False)
-for key, value in topMonthRanked:
-    print(key, value)
-
 
 amounts = [row["amount"] for row in main.values()]
-
 total = sum(amounts)
 minimum = min(main.items(), key=lambda pair: pair[1]['amount'])
 maximum = max(main.items(), key=lambda pair: pair[1]['amount'])
 avg = total / len(amounts)
-
-print()
-
-
-
 
 valid_count = len(main)
 invalid_count = len(invalid)
@@ -138,23 +124,35 @@ earliest = min(dates).strftime("%Y-%m-%d")
 latest = max(dates).strftime("%Y-%m-%d") 
                 
 
+def format_currency(amount):
+    if amount < 0:
+        return f"-${abs(amount):,.2f}"
+    return f"${amount:,.2f}"
+
+
 def printHeader(fileName) -> str:
     out = f"""SALES REPORT — {fileName}\n{"="*30}"""
     return out
-    
 
-def printTotals(rows_read, valid_count, invalid_count, total, avg, minimum, maximum) -> str:
+
+def printTotals(rows_read, valid_count, invalid_count, reasonsBreakdown, total, avg, minimum, maximum) -> str:
     min_idx, min_row = minimum
     max_idx, max_row = maximum
 
-    out = f"""Rows read:  {rows_read}
-Valid:      {valid_count}
-Invalid:    {invalid_count}
+    reason_parts = []
+    for reason, stats in reasonsBreakdown.items():
+        reason_parts.append(f"{stats['count']} {reason}")
+    reason_str = ", ".join(reason_parts)
 
-Revenue total: ${total:,.2f}
-Average sale:  ${avg:,.2f}
-Min / Max:     ${min_row['amount']:,.2f} (row {min_idx}) / ${max_row['amount']:,.2f} (row {max_idx})"""
-    return out
+    lines = []
+    lines.append(f"Rows read:  {rows_read}")
+    lines.append(f"Valid:      {valid_count}")
+    lines.append(f"Invalid:    {invalid_count}   ({reason_str})")
+    lines.append("")
+    lines.append(f"Revenue total: {format_currency(total)}")
+    lines.append(f"Average sale:  {format_currency(avg)}")
+    lines.append(f"Min / Max:     {format_currency(min_row['amount'])} (row {min_idx}) / {format_currency(max_row['amount'])} (row {max_idx})")
+    return "\n".join(lines)
 
 
 def printProductRanked(ranked, n) -> str:
@@ -183,15 +181,33 @@ def printDataQuality(invalid, negative, duplicates, main) -> str:
         for reason in stats["reasons"]:
             field = reason_to_field.get(reason)
             if field is not None:
-                row_str = f'("{stats["rowData"][field]}")'
+                row_str = f'("{stats['rowData'][field]}")'
                 lines.append(f"     row {idx} {reason:<12}   {row_str:<12}")
             else:
                 lines.append(f"     row {idx} {reason}")
+
+    lines.append("  refunds")
+    for idx, value in negative.items():
+        lines.append(f"     row {idx} {format_currency(value['amount'])}")
+
+    lines.append("  duplicates")
+    for idx, stats in duplicates.items():
+        canonical = main[idx]
+        date_str = canonical["date"].strftime("%Y-%m-%d")
+        for repeat_idx in stats:
+            lines.append(f"     row {idx:<3} ({date_str}, {canonical['product']}, {format_currency(canonical['amount'])}) : row {repeat_idx}")
+
     return '\n'.join(lines)
 
 
-print(printHeader(args.fileName))
-print(printTotals(rows_read, valid_count, invalid_count, total, avg, minimum, maximum))
-print(printProductRanked(topProductRanked, args.top))
-print(printMonthRanked(topMonthRanked, earliest, latest))
-print(printDataQuality(invalid, negative, duplicates, main))
+def format_report(fileName, rows_read, valid_count, invalid_count, reasonsBreakdown, total, avg, minimum, maximum, topProductRanked, n, topMonthRanked, earliest, latest, invalid, negative, duplicates, main) -> str:
+    sections = []
+    sections.append(printHeader(fileName))
+    sections.append(printTotals(rows_read, valid_count, invalid_count, reasonsBreakdown, total, avg, minimum, maximum))
+    sections.append(printProductRanked(topProductRanked, n))
+    sections.append(printMonthRanked(topMonthRanked, earliest, latest))
+    sections.append(printDataQuality(invalid, negative, duplicates, main))
+    return '\n\n'.join(sections)
+
+print(format_report(args.fileName, rows_read, valid_count, invalid_count, reasonsBreakdown, total, avg, minimum, maximum, topProductRanked, args.top, topMonthRanked, earliest, latest, invalid, negative, duplicates, main))
+
